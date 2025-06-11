@@ -1,6 +1,6 @@
 .PHONY: clean
 
-output: main.o scanner.o bitstream.o
+output: main.o scanner.o
 	g++ -g -O0 -o output -lz $^
 
 %.o: %.cpp
