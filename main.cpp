@@ -97,6 +97,16 @@ PNG_Info process_header(Scanner &file)
     current_info.compression_method = file.read_byte();
     current_info.filter_method = file.read_byte();
     current_info.interlace_method = file.read_byte();
+    if (current_info.interlace_method == 1)
+    {
+        throw std::runtime_error("Unimplemented interlace method: Adam7");
+    }
+    if (current_info.bpc != 8)
+    {
+        std::stringstream error_message;
+        error_message << "Unsupported bpc: " << static_cast<uint32_t>(current_info.bpc);
+        throw std::runtime_error(error_message.str());
+    }
     file.skip_bytes(4);
     return current_info;
 }
