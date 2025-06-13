@@ -2,8 +2,7 @@
 #include <ios>
 #include <stdexcept>
 
-Scanner::Scanner(std::string filename, Endianness endianness)
-    : _current_file(filename), _current_endianness(endianness)
+Scanner::Scanner(std::string filename, Endianness endianness) : _current_file(filename), _current_endianness(endianness)
 {
     if (!_current_file.good())
     {
@@ -67,13 +66,11 @@ uint64_t Scanner::read_qword()
     uint64_t temp;
     if (_current_endianness == Endianness::little_endian)
     {
-        temp = (byte7 << 56) | (byte6 << 48) | (byte5 << 40) | (byte4 << 32) | (byte3 << 24) |
-               (byte2 << 16) | (byte1 << 8) | byte0;
+        temp = (byte7 << 56) | (byte6 << 48) | (byte5 << 40) | (byte4 << 32) | (byte3 << 24) | (byte2 << 16) | (byte1 << 8) | byte0;
     }
     else
     {
-        temp = (byte0 << 56) | (byte1 << 48) | (byte2 << 40) | (byte3 << 32) | (byte4 << 24) |
-               (byte5 << 16) | (byte6 << 8) | byte7;
+        temp = (byte0 << 56) | (byte1 << 48) | (byte2 << 40) | (byte3 << 32) | (byte4 << 24) | (byte5 << 16) | (byte6 << 8) | byte7;
     }
     return temp;
 }

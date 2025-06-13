@@ -1,10 +1,7 @@
 #pragma once
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
-#include <istream>
-#include <iterator>
 #include <string>
 
 class Scanner
