@@ -121,7 +121,7 @@ static Image process_data(const std::vector<uint8_t> &image_data, const PNG_Head
     std::vector<uint8_t> unfiltered_data;
     unfilter_png(image_info, uncompressed_data, unfiltered_data);
 
-    return Image::from_RGBA({image_info.width, image_info.height}, unfiltered_data);
+    return post_process_data(unfiltered_data, image_info);
 }
 
 static void deflate_png(const std::vector<uint8_t> &compressed_data, std::vector<uint8_t> &uncompressed_data)
@@ -269,4 +269,29 @@ uint8_t paeth_predictor(uint8_t a, uint8_t b, uint8_t c)
 
 static Image post_process_data(const std::vector<uint8_t> &image_data, const PNG_Header_Info &image_info)
 {
+    switch (image_info.color_type)
+    {
+    case 0:
+        // Do grayscale things
+        throw std::runtime_error("Unimplemented: Grayscale images");
+        break;
+    case 3:
+        // Convert from palette
+        throw std::runtime_error("Unimplemented: Palette images");
+        break;
+    case 4:
+        // Grayscale + Alpha
+        throw std::runtime_error("Unimplemented: Grayscale+Alpha images");
+    case 2:
+        // RGB
+        // TODO: Sanitize 16 bit colors down to 8 bit colors
+        return Image::from_RGB({image_info.width, image_info.height}, image_data);
+        break;
+    case 6:
+        // RGBA
+        // TODO: Sanitize 16 bit colors down to 8 bit colors
+        return Image::from_RGBA({image_info.width, image_info.height}, image_data);
+        break;
+    }
+    return Image();
 }
