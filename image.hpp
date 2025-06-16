@@ -19,10 +19,16 @@ struct Image
     Image_Size _dims;
     std::vector<uint8_t> _image_data;
 
-    static Image from_RGB(Image_Size dimensions, std::vector<uint8_t> data);
-    static Image from_RGBA(Image_Size dimensions, std::vector<uint8_t> data);
-    static Image from_GRAY(Image_Size dimensions, std::vector<uint8_t> data);
-    static Image from_GRAY_ALPHA(Image_Size dimensions, std::vector<uint8_t> data);
+    static Image from_RGB(Image_Size dimensions, const std::vector<uint8_t> &data, bool alpha = false);
+    static Image from_RGBA(Image_Size dimensions, const std::vector<uint8_t> &data)
+    {
+        return from_RGB(dimensions, data, true);
+    }
+    static Image from_GRAY(Image_Size dimensions, const std::vector<uint8_t> &data, bool alpha = false);
+    static Image from_GRAY_ALPHA(Image_Size dimensions, const std::vector<uint8_t> &data)
+    {
+        return from_GRAY(dimensions, data, true);
+    }
 
     friend std::ostream &operator<<(std::ostream &out, const Image &img);
     friend std::istream &operator>>(std::istream &in, Image &img);

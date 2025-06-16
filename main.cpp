@@ -4,7 +4,7 @@
 
 int main()
 {
-    Scanner current_file("images/palette.png");
+    Scanner current_file("images/grayscale.png");
 
     if (PNG::is_PNG_file(current_file))
     {
