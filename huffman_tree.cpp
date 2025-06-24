@@ -1,78 +1,8 @@
 #include "huffman_tree.hpp"
-#include <algorithm>
 #include <cstdint>
 #include <iostream>
 #include <stdexcept>
 #include <utility>
-
-// Huffman_Tree::Huffman_Tree(const Huffman_Tree &other) noexcept : _type(other._type), _value(other._value)
-// {
-
-//     std::cout << "Huffman copy constructor" << std::endl;
-//     if (other._zero == nullptr)
-//     {
-//         _zero = nullptr;
-//     }
-//     else
-//     {
-//         _zero = new Huffman_Tree(*(other._zero));
-//     }
-//     if (other._one == nullptr)
-//     {
-//         _one = nullptr;
-//     }
-//     else
-//     {
-//         _one = new Huffman_Tree(*(other._one));
-//     }
-// }
-
-// Huffman_Tree::Huffman_Tree(Huffman_Tree &&other) noexcept : _type(other._type), _value(other._value), _zero(other._zero), _one(other._one)
-// {
-//     std::cout << "Huffman move constructor" << std::endl;
-//     other._zero = nullptr;
-//     other._one = nullptr;
-// }
-
-// Huffman_Tree &Huffman_Tree::operator=(const Huffman_Tree &other) noexcept
-// {
-//     if (&other == this)
-//     {
-//         return *this;
-//     }
-//     std::cout << "Huffman copy" << std::endl;
-//     _type = other._type;
-//     _value = other._value;
-//     delete _zero;
-//     delete _one;
-//     if (other._zero == nullptr)
-//     {
-//         _zero = nullptr;
-//     }
-//     else
-//     {
-//         _zero = new Huffman_Tree(*(other._zero));
-//     }
-//     if (other._one == nullptr)
-//     {
-//         _one = nullptr;
-//     }
-//     else
-//     {
-//         _one = new Huffman_Tree(*(other._one));
-//     }
-//     return *this;
-// }
-
-// Huffman_Tree &Huffman_Tree::operator=(Huffman_Tree &&other) noexcept
-// {
-//     std::cout << "Huffman move" << std::endl;
-//     this->_type = other._type;
-//     this->_value = other._value;
-//     std::swap(this->_zero, other._zero);
-//     std::swap(this->_one, other._one);
-//     return *this;
-// }
 
 void Huffman_Tree::add_code(uint32_t code, size_t code_length, size_t pos, uint32_t value)
 {

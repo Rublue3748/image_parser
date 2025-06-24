@@ -184,7 +184,7 @@ static void unfilter_png()
     for (size_t i = 0; i < num_scanlines; i++)
     {
         uint64_t filtered_start_offset = i * filtered_bytes_per_scanline;
-        uint64_t unfiltered_start_offset = i * bytes_per_scanline;
+        // uint64_t unfiltered_start_offset = i * bytes_per_scanline;
 
         uint8_t filter = uncompressed_png_data[filtered_start_offset];
 

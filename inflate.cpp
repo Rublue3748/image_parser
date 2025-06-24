@@ -18,9 +18,12 @@ std::vector<uint8_t> inflate_data(const std::vector<uint8_t> &compressed_data)
     // Decode zlib header
     uint64_t CM = stream.pop_bits(4);
     uint64_t CINFO = stream.pop_bits(4);
+    (void)CINFO;
     uint64_t FCHECK = stream.pop_bits(5);
+    (void)FCHECK;
     uint64_t FDICT = stream.pop_bits(1);
     uint64_t FLEVEL = stream.pop_bits(2);
+    (void)FLEVEL;
 
     if (CM != 8)
     {
