@@ -1,13 +1,12 @@
 #include "png.hpp"
 
+#include "endianness.hpp"
+#include "inflate.hpp"
 #include "scanner.hpp"
-#include <algorithm>
-#include <array>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
-#include <zlib.h>
 
 struct PNG_Header_Info
 {
@@ -22,7 +21,6 @@ struct PNG_Header_Info
 
 static PNG_Header_Info process_header(Scanner &file);
 static Image process_data();
-static void deflate_png();
 static void unfilter_png();
 static Image post_process_data();
 static Image generate_palette_image();
@@ -57,7 +55,7 @@ Image PNG::PNG_Try_Parse(Scanner &file)
     }
     // Skip over header checked in file
     file.skip_bytes(8);
-    file.set_endianness(Scanner::Endianness::big_endian);
+    file.set_endianness(Endianness::big_endian);
 
     // Loop over all chunks
     std::string chunk_type = "XXXX";
@@ -139,46 +137,11 @@ static PNG_Header_Info process_header(Scanner &file)
 static Image process_data()
 {
 
-    deflate_png();
+    uncompressed_png_data = inflate_data(compressed_png_data);
 
-    std::vector<uint8_t> unfiltered_data;
     unfilter_png();
 
     return post_process_data();
-}
-
-static void deflate_png()
-{
-    // TODO: Rewrite deflate algorithm
-    std::array<uint8_t, 4096> buffer;
-
-    z_stream_s decode_stream;
-
-    decode_stream.next_in = const_cast<uint8_t *>(compressed_png_data.data());
-    decode_stream.avail_in = compressed_png_data.size();
-    decode_stream.total_in = 0;
-
-    decode_stream.next_out = buffer.data();
-    decode_stream.avail_out = buffer.size();
-    decode_stream.total_out = 0;
-
-    decode_stream.zalloc = Z_NULL;
-    decode_stream.zfree = Z_NULL;
-    decode_stream.opaque = Z_NULL;
-
-    decode_stream.data_type = Z_BINARY;
-
-    inflateInit(&decode_stream);
-    int result;
-    do
-    {
-        result = inflate(&decode_stream, Z_SYNC_FLUSH);
-        std::copy_n(buffer.begin(), buffer.size() - decode_stream.avail_out, std::back_inserter(uncompressed_png_data));
-        decode_stream.next_in = const_cast<uint8_t *>(compressed_png_data.data()) + decode_stream.total_in;
-        decode_stream.avail_in = compressed_png_data.size() - decode_stream.total_in;
-        decode_stream.next_out = buffer.data();
-        decode_stream.avail_out = buffer.size();
-    } while ((result == Z_OK) && (decode_stream.avail_out != 0));
 }
 
 static void unfilter_png()

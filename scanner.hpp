@@ -1,4 +1,5 @@
 #pragma once
+#include "endianness.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
@@ -7,13 +8,8 @@
 class Scanner
 {
   public:
-    enum class Endianness
-    {
-        big_endian,
-        little_endian
-    };
-    Scanner(Endianness endianness = Scanner::Endianness::little_endian);
-    Scanner(std::string filename, Endianness endianness = Scanner::Endianness::little_endian);
+    Scanner(Endianness endianness = Endianness::little_endian);
+    Scanner(std::string filename, Endianness endianness = Endianness::little_endian);
     ~Scanner();
 
     uint8_t read_byte();
