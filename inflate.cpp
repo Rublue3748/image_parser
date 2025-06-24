@@ -52,15 +52,30 @@ static bool inflate_block(Bitstream &stream, std::vector<uint8_t> &return_data)
 {
     bool is_final = stream.pop_bit();
     uint8_t compression_type = stream.pop_bits(2);
-    if (compression_type == 0b00)
-    {
-        // std::cout << "Uncompressed data" << std::endl;
-        // std::copy(compressed_data.begin() + (FDICT ? 4 : 3), compressed_data.end(), std::back_inserter(return_data));
-        // return return_data;
-    }
+
     if (compression_type == 0b11)
     {
         throw std::runtime_error("Invalid compression type!");
+    }
+
+    if (compression_type == 0b00)
+    {
+        stream.set_endianness(Endianness::little_endian);
+        stream.skip_to_byte_boundary();
+
+        uint32_t data_length = stream.pop_bits(16);
+        uint32_t n_data_length = stream.pop_bits(16);
+        if ((~data_length) != n_data_length)
+        {
+            throw std::runtime_error("LEN and NLEN do not match!");
+        }
+
+        // Copy LEN bytes to return and exit
+        for (size_t i = 0; i < data_length; i++)
+        {
+            return_data.push_back(stream.pop_bits(8));
+        }
+        return is_final;
     }
 
     Huffman_Tree literal_tree;

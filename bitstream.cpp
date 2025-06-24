@@ -45,3 +45,15 @@ uint64_t Bitstream::pop_bits(size_t bits)
     }
     return result;
 }
+
+void Bitstream::skip_to_byte_boundary()
+{
+    // Each byte boundary is on a multiple of 8.
+    if ((_start & 0b111) == 0)
+    {
+        // Already on a byte boundary
+        return;
+    }
+    _start &= ~(0b111);
+    _start += 8;
+}

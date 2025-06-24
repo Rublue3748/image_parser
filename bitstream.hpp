@@ -19,6 +19,7 @@ class Bitstream
 
     bool pop_bit();
     uint64_t pop_bits(size_t bits);
+    void skip_to_byte_boundary();
 
   private:
     std::vector<uint8_t> _data;
