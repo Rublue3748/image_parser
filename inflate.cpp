@@ -3,11 +3,16 @@
 #include "endianness.hpp"
 #include "huffman_tree.hpp"
 #include <cstddef>
+#include <cstdint>
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
 static bool inflate_block(Bitstream &data, std::vector<uint8_t> &return_data);
+static void copy_uncompressed(Bitstream &data, std::vector<uint8_t> &return_data);
 static std::pair<Huffman_Tree, Huffman_Tree> get_static_trees();
 static std::pair<Huffman_Tree, Huffman_Tree> get_dynamic_trees(Bitstream &stream);
+static void get_data_from_trees(Bitstream &stream, std::vector<uint8_t> &return_data, std::pair<Huffman_Tree, Huffman_Tree> trees);
 static uint32_t get_length_from_literal(uint32_t literal, Bitstream &stream);
 static uint32_t get_offset_from_literal(uint32_t literal, Bitstream &stream);
 
@@ -51,73 +56,44 @@ static bool inflate_block(Bitstream &stream, std::vector<uint8_t> &return_data)
     bool is_final = stream.pop_bit();
     uint8_t compression_type = stream.pop_bits(2);
 
-    if (compression_type == 0b11)
+    std::pair<Huffman_Tree, Huffman_Tree> trees;
+    switch (compression_type)
     {
+    case 0b00:
+        copy_uncompressed(stream, return_data);
+        break;
+    case 0b01:
+        trees = get_static_trees();
+        get_data_from_trees(stream, return_data, trees);
+        break;
+    case 0b10:
+        trees = get_dynamic_trees(stream);
+        get_data_from_trees(stream, return_data, trees);
+        break;
+    case 0b11:
         throw std::runtime_error("Invalid compression type!");
     }
 
-    if (compression_type == 0b00)
-    {
-        stream.set_endianness(Endianness::little_endian);
-        stream.skip_to_byte_boundary();
-
-        uint32_t data_length = stream.pop_bits(16);
-        uint32_t n_data_length = stream.pop_bits(16);
-        if ((~data_length) != n_data_length)
-        {
-            throw std::runtime_error("LEN and NLEN do not match!");
-        }
-
-        // Copy LEN bytes to return and exit
-        for (size_t i = 0; i < data_length; i++)
-        {
-            return_data.push_back(stream.pop_bits(8));
-        }
-        return is_final;
-    }
-
-    Huffman_Tree literal_tree;
-    Huffman_Tree distance_tree;
-
-    if (compression_type == 0b01)
-    {
-        auto trees = get_static_trees();
-        literal_tree = trees.first;
-        distance_tree = trees.second;
-    }
-    else
-    {
-        auto trees = get_dynamic_trees(stream);
-        literal_tree = trees.first;
-        distance_tree = trees.second;
-    }
-
-    // Decode data using the given trees
-    bool run = true;
-    while (run)
-    {
-
-        uint32_t literal_value = literal_tree.get_next_value(stream);
-        if (literal_value == 256) // Special end of block value
-        {
-            run = false;
-        }
-        else if (literal_value < 256)
-        {
-            return_data.push_back(literal_value);
-        }
-        else // >256, represents a <length,offset> pair
-        {
-            uint32_t length = get_length_from_literal(literal_value, stream);
-            uint32_t offset_value = distance_tree.get_next_value(stream);
-            uint32_t offset = get_offset_from_literal(offset_value, stream);
-            for (size_t i = 0; i < length; i++)
-            {
-                return_data.push_back(return_data.at(return_data.size() - offset));
-            }
-        }
-    }
     return !is_final;
+}
+
+static void copy_uncompressed(Bitstream &stream, std::vector<uint8_t> &return_data)
+{
+    stream.set_endianness(Endianness::little_endian);
+    stream.skip_to_byte_boundary();
+
+    uint32_t data_length = stream.pop_bits(16);
+    uint32_t n_data_length = stream.pop_bits(16);
+    if ((~data_length) != n_data_length)
+    {
+        throw std::runtime_error("LEN and NLEN do not match!");
+    }
+
+    // Copy LEN bytes to return and exit
+    for (size_t i = 0; i < data_length; i++)
+    {
+        return_data.push_back(stream.pop_bits(8));
+    }
 }
 
 static std::pair<Huffman_Tree, Huffman_Tree> get_static_trees()
@@ -229,6 +205,38 @@ static std::pair<Huffman_Tree, Huffman_Tree> get_dynamic_trees(Bitstream &stream
     Huffman_Tree distance_tree = Huffman_Tree::generate_tree(lit_map);
 
     return {literal_tree, distance_tree};
+}
+
+static void get_data_from_trees(Bitstream &stream, std::vector<uint8_t> &return_data, std::pair<Huffman_Tree, Huffman_Tree> trees)
+{
+    Huffman_Tree literal_tree = trees.first;
+    Huffman_Tree distance_tree = trees.second;
+
+    // Decode data using the given trees
+    bool run = true;
+    while (run)
+    {
+
+        uint32_t literal_value = literal_tree.get_next_value(stream);
+        if (literal_value == 256) // Special end of block value
+        {
+            run = false;
+        }
+        else if (literal_value < 256)
+        {
+            return_data.push_back(literal_value);
+        }
+        else // >256, represents a <length,offset> pair
+        {
+            uint32_t length = get_length_from_literal(literal_value, stream);
+            uint32_t offset_value = distance_tree.get_next_value(stream);
+            uint32_t offset = get_offset_from_literal(offset_value, stream);
+            for (size_t i = 0; i < length; i++)
+            {
+                return_data.push_back(return_data.at(return_data.size() - offset));
+            }
+        }
+    }
 }
 
 static uint32_t get_length_from_literal(uint32_t literal, Bitstream &stream)
