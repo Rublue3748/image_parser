@@ -7,6 +7,9 @@
 #include <iterator>
 #include <stdexcept>
 
+static bool inflate_block(Bitstream &data, std::vector<uint8_t> &return_data);
+static std::pair<Huffman_Tree, Huffman_Tree> get_static_trees();
+static std::pair<Huffman_Tree, Huffman_Tree> get_dynamic_trees(Bitstream &stream);
 static uint32_t get_length_from_literal(uint32_t literal, Bitstream &stream);
 static uint32_t get_offset_from_literal(uint32_t literal, Bitstream &stream);
 
@@ -18,11 +21,11 @@ std::vector<uint8_t> inflate_data(const std::vector<uint8_t> &compressed_data)
     // Decode zlib header
     uint64_t CM = stream.pop_bits(4);
     uint64_t CINFO = stream.pop_bits(4);
-    (void)CINFO;
     uint64_t FCHECK = stream.pop_bits(5);
-    (void)FCHECK;
     uint64_t FDICT = stream.pop_bits(1);
     uint64_t FLEVEL = stream.pop_bits(2);
+    (void)CINFO;
+    (void)FCHECK;
     (void)FLEVEL;
 
     if (CM != 8)
@@ -38,16 +41,22 @@ std::vector<uint8_t> inflate_data(const std::vector<uint8_t> &compressed_data)
     }
     // Decode inflate header
 
-    if (stream.pop_bit())
-    {
-        std::cout << "Final zlib bitstream!" << std::endl;
-    }
+    while (inflate_block(stream, return_data))
+        ;
+
+    return return_data;
+};
+
+// Returns if there are more blocks to decode
+static bool inflate_block(Bitstream &stream, std::vector<uint8_t> &return_data)
+{
+    bool is_final = stream.pop_bit();
     uint8_t compression_type = stream.pop_bits(2);
     if (compression_type == 0b00)
     {
-        std::cout << "Uncompressed data" << std::endl;
-        std::copy(compressed_data.begin() + (FDICT ? 4 : 3), compressed_data.end(), std::back_inserter(return_data));
-        return return_data;
+        // std::cout << "Uncompressed data" << std::endl;
+        // std::copy(compressed_data.begin() + (FDICT ? 4 : 3), compressed_data.end(), std::back_inserter(return_data));
+        // return return_data;
     }
     if (compression_type == 0b11)
     {
@@ -60,132 +69,16 @@ std::vector<uint8_t> inflate_data(const std::vector<uint8_t> &compressed_data)
     if (compression_type == 0b01)
     {
         std::cout << "Static Huffman tree" << std::endl;
-        std::map<uint32_t, uint32_t> literal_map;
-        for (size_t i = 0; i < 144; i++)
-        {
-            literal_map.insert({i, 8});
-        }
-        for (size_t i = 144; i < 256; i++)
-        {
-            literal_map.insert({i, 9});
-        }
-        for (size_t i = 256; i < 280; i++)
-        {
-            literal_map.insert({i, 7});
-        }
-        for (size_t i = 280; i < 288; i++)
-        {
-            literal_map.insert({i, 8});
-        }
-        literal_tree = Huffman_Tree::generate_tree(literal_map);
-        for (size_t i = 0; i < 32; i++)
-        {
-            distance_tree.add_code(i, 5, i);
-        }
+        auto trees = get_static_trees();
+        literal_tree = trees.first;
+        distance_tree = trees.second;
     }
     else
     {
         std::cout << "Dynamic Huffman tree" << std::endl;
-        stream.set_endianness(Endianness::little_endian);
-        uint16_t HLIT = stream.pop_bits(5) + 257;
-        uint16_t HDIST = stream.pop_bits(5) + 1;
-        uint16_t HCLEN = stream.pop_bits(4) + 4;
-        std::cout << "HLIT: " << HLIT << " HDIST: " << HDIST << " HCLEN: " << HCLEN << std::endl;
-
-        const std::vector<uint32_t> codes = {16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15};
-
-        std::map<uint32_t, uint32_t> code_lengths;
-
-        for (size_t i = 0; i < HCLEN; i++)
-        {
-            uint32_t code_length = stream.pop_bits(3);
-            if (code_length != 0)
-            {
-                std::cout << "Code " << codes[i] << " -> " << code_length << std::endl;
-                code_lengths.insert_or_assign(codes[i], code_length);
-            }
-        }
-        for (const auto &p : code_lengths)
-        {
-            std::cout << "Test code: " << p.first << ", " << p.second << std::endl;
-        }
-        Huffman_Tree initial_tree = Huffman_Tree::generate_tree(code_lengths);
-        std::cout << initial_tree;
-        std::vector<uint32_t> literals;
-        stream.set_endianness(Endianness::little_endian);
-        while (literals.size() < HLIT + HDIST)
-        {
-            uint32_t val = initial_tree.get_next_value(stream);
-            // std::cout << "Read in code: " << current_code << " with value " << val << std::endl;
-            if (val == 16)
-            {
-                // stream.set_endianness(Endianness::little_endian);
-                uint32_t repeat_amount = 3 + stream.pop_bits(2);
-                // stream.set_endianness(Endianness::big_endian);
-                std::cout << "Repeating " << repeat_amount << " times" << std::endl;
-                for (size_t i = 0; i < repeat_amount; i++)
-                {
-                    literals.push_back(literals.back());
-                }
-            }
-            else if (val == 17)
-            {
-                // stream.set_endianness(Endianness::little_endian);
-                uint32_t repeat_amount = 3 + stream.pop_bits(3);
-                // stream.set_endianness(Endianness::big_endian);
-                std::cout << "Repeating zero " << repeat_amount << " times" << std::endl;
-                for (size_t i = 0; i < repeat_amount; i++)
-                {
-                    literals.push_back(0);
-                }
-            }
-            else if (val == 18)
-            {
-                // stream.set_endianness(Endianness::little_endian);
-                uint32_t repeat_amount = 11 + stream.pop_bits(7);
-                // stream.set_endianness(Endianness::big_endian);
-                std::cout << "Repeating zero " << repeat_amount << " times" << std::endl;
-                for (size_t i = 0; i < repeat_amount; i++)
-                {
-                    literals.push_back(0);
-                }
-            }
-            else
-            {
-                literals.push_back(val);
-            }
-        }
-        if (literals.size() > HLIT + HDIST)
-        {
-            std::cout << "Overshot count!" << std::endl;
-        }
-        for (size_t i = 0; i < literals.size(); i++)
-        {
-            std::cout << i << " -> " << literals[i] << std::endl;
-        }
-
-        std::map<uint32_t, uint32_t> lit_map;
-
-        for (uint32_t i = 0; i < HLIT; i++)
-        {
-            if (literals[i] != 0)
-            {
-                lit_map.insert(std::pair(i, literals[i]));
-            }
-        }
-        literal_tree = Huffman_Tree::generate_tree(lit_map);
-
-        lit_map.clear();
-        for (uint32_t i = 0; i < HDIST; i++)
-        {
-            if (literals[HLIT + i] != 0)
-            {
-                lit_map.insert(std::pair(i, literals[HLIT + i]));
-            }
-        }
-        distance_tree = Huffman_Tree::generate_tree(lit_map);
-
-        // Generate dynamic tree
+        auto trees = get_dynamic_trees(stream);
+        literal_tree = trees.first;
+        distance_tree = trees.second;
     }
     std::cout << "Literal tree: " << literal_tree << std::endl << "Distance tree: " << distance_tree << std::endl;
 
@@ -215,9 +108,141 @@ std::vector<uint8_t> inflate_data(const std::vector<uint8_t> &compressed_data)
             }
         }
     }
+    return !is_final;
+}
 
-    return decoded_data;
-};
+static std::pair<Huffman_Tree, Huffman_Tree> get_static_trees()
+{
+    std::map<uint32_t, uint32_t> literal_map;
+    for (size_t i = 0; i < 144; i++)
+    {
+        literal_map.insert({i, 8});
+    }
+    for (size_t i = 144; i < 256; i++)
+    {
+        literal_map.insert({i, 9});
+    }
+    for (size_t i = 256; i < 280; i++)
+    {
+        literal_map.insert({i, 7});
+    }
+    for (size_t i = 280; i < 288; i++)
+    {
+        literal_map.insert({i, 8});
+    }
+    Huffman_Tree literal_tree = Huffman_Tree::generate_tree(literal_map);
+    Huffman_Tree distance_tree;
+    for (size_t i = 0; i < 32; i++)
+    {
+        distance_tree.add_code(i, 5, i);
+    }
+    return {literal_tree, distance_tree};
+}
+
+static std::pair<Huffman_Tree, Huffman_Tree> get_dynamic_trees(Bitstream &stream)
+{
+
+    stream.set_endianness(Endianness::little_endian);
+    uint16_t HLIT = stream.pop_bits(5) + 257;
+    uint16_t HDIST = stream.pop_bits(5) + 1;
+    uint16_t HCLEN = stream.pop_bits(4) + 4;
+    std::cout << "HLIT: " << HLIT << " HDIST: " << HDIST << " HCLEN: " << HCLEN << std::endl;
+
+    const std::vector<uint32_t> codes = {16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15};
+
+    std::map<uint32_t, uint32_t> code_lengths;
+
+    for (size_t i = 0; i < HCLEN; i++)
+    {
+        uint32_t code_length = stream.pop_bits(3);
+        if (code_length != 0)
+        {
+            std::cout << "Code " << codes[i] << " -> " << code_length << std::endl;
+            code_lengths.insert_or_assign(codes[i], code_length);
+        }
+    }
+    for (const auto &p : code_lengths)
+    {
+        std::cout << "Test code: " << p.first << ", " << p.second << std::endl;
+    }
+    Huffman_Tree initial_tree = Huffman_Tree::generate_tree(code_lengths);
+    std::cout << initial_tree;
+    std::vector<uint32_t> literals;
+    stream.set_endianness(Endianness::little_endian);
+    while (literals.size() < HLIT + HDIST)
+    {
+        uint32_t val = initial_tree.get_next_value(stream);
+        // std::cout << "Read in code: " << current_code << " with value " << val << std::endl;
+        if (val == 16)
+        {
+            // stream.set_endianness(Endianness::little_endian);
+            uint32_t repeat_amount = 3 + stream.pop_bits(2);
+            // stream.set_endianness(Endianness::big_endian);
+            std::cout << "Repeating " << repeat_amount << " times" << std::endl;
+            for (size_t i = 0; i < repeat_amount; i++)
+            {
+                literals.push_back(literals.back());
+            }
+        }
+        else if (val == 17)
+        {
+            // stream.set_endianness(Endianness::little_endian);
+            uint32_t repeat_amount = 3 + stream.pop_bits(3);
+            // stream.set_endianness(Endianness::big_endian);
+            std::cout << "Repeating zero " << repeat_amount << " times" << std::endl;
+            for (size_t i = 0; i < repeat_amount; i++)
+            {
+                literals.push_back(0);
+            }
+        }
+        else if (val == 18)
+        {
+            // stream.set_endianness(Endianness::little_endian);
+            uint32_t repeat_amount = 11 + stream.pop_bits(7);
+            // stream.set_endianness(Endianness::big_endian);
+            std::cout << "Repeating zero " << repeat_amount << " times" << std::endl;
+            for (size_t i = 0; i < repeat_amount; i++)
+            {
+                literals.push_back(0);
+            }
+        }
+        else
+        {
+            literals.push_back(val);
+        }
+    }
+    if (literals.size() > HLIT + HDIST)
+    {
+        std::cout << "Overshot count!" << std::endl;
+    }
+    for (size_t i = 0; i < literals.size(); i++)
+    {
+        std::cout << i << " -> " << literals[i] << std::endl;
+    }
+
+    std::map<uint32_t, uint32_t> lit_map;
+
+    for (uint32_t i = 0; i < HLIT; i++)
+    {
+        if (literals[i] != 0)
+        {
+            lit_map.insert(std::pair(i, literals[i]));
+        }
+    }
+    Huffman_Tree literal_tree = Huffman_Tree::generate_tree(lit_map);
+
+    lit_map.clear();
+    for (uint32_t i = 0; i < HDIST; i++)
+    {
+        if (literals[HLIT + i] != 0)
+        {
+            lit_map.insert(std::pair(i, literals[HLIT + i]));
+        }
+    }
+    Huffman_Tree distance_tree = Huffman_Tree::generate_tree(lit_map);
+
+    return {literal_tree, distance_tree};
+}
 
 static uint32_t get_length_from_literal(uint32_t literal, Bitstream &stream)
 {
