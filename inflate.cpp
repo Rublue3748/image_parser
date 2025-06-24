@@ -3,8 +3,6 @@
 #include "endianness.hpp"
 #include "huffman_tree.hpp"
 #include <cstddef>
-#include <iostream>
-#include <iterator>
 #include <stdexcept>
 
 static bool inflate_block(Bitstream &data, std::vector<uint8_t> &return_data);
@@ -16,6 +14,7 @@ static uint32_t get_offset_from_literal(uint32_t literal, Bitstream &stream);
 std::vector<uint8_t> inflate_data(const std::vector<uint8_t> &compressed_data)
 {
     Bitstream stream(compressed_data);
+    stream.set_endianness(Endianness::little_endian);
     std::vector<uint8_t> return_data;
 
     // Decode zlib header
@@ -36,7 +35,6 @@ std::vector<uint8_t> inflate_data(const std::vector<uint8_t> &compressed_data)
     // Skip dictonary CRC bit
     if (FDICT)
     {
-        std::cout << "FDICT!" << std::endl;
         stream.pop_bits(8);
     }
     // Decode inflate header
@@ -83,23 +81,19 @@ static bool inflate_block(Bitstream &stream, std::vector<uint8_t> &return_data)
 
     if (compression_type == 0b01)
     {
-        std::cout << "Static Huffman tree" << std::endl;
         auto trees = get_static_trees();
         literal_tree = trees.first;
         distance_tree = trees.second;
     }
     else
     {
-        std::cout << "Dynamic Huffman tree" << std::endl;
         auto trees = get_dynamic_trees(stream);
         literal_tree = trees.first;
         distance_tree = trees.second;
     }
-    std::cout << "Literal tree: " << literal_tree << std::endl << "Distance tree: " << distance_tree << std::endl;
 
     // Decode data using the given trees
     bool run = true;
-    std::vector<uint8_t> decoded_data;
     while (run)
     {
 
@@ -110,7 +104,7 @@ static bool inflate_block(Bitstream &stream, std::vector<uint8_t> &return_data)
         }
         else if (literal_value < 256)
         {
-            decoded_data.push_back(literal_value);
+            return_data.push_back(literal_value);
         }
         else // >256, represents a <length,offset> pair
         {
@@ -119,7 +113,7 @@ static bool inflate_block(Bitstream &stream, std::vector<uint8_t> &return_data)
             uint32_t offset = get_offset_from_literal(offset_value, stream);
             for (size_t i = 0; i < length; i++)
             {
-                decoded_data.push_back(decoded_data.at(decoded_data.size() - offset));
+                return_data.push_back(return_data.at(return_data.size() - offset));
             }
         }
     }
@@ -157,11 +151,9 @@ static std::pair<Huffman_Tree, Huffman_Tree> get_static_trees()
 static std::pair<Huffman_Tree, Huffman_Tree> get_dynamic_trees(Bitstream &stream)
 {
 
-    stream.set_endianness(Endianness::little_endian);
     uint16_t HLIT = stream.pop_bits(5) + 257;
     uint16_t HDIST = stream.pop_bits(5) + 1;
     uint16_t HCLEN = stream.pop_bits(4) + 4;
-    std::cout << "HLIT: " << HLIT << " HDIST: " << HDIST << " HCLEN: " << HCLEN << std::endl;
 
     const std::vector<uint32_t> codes = {16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15};
 
@@ -172,28 +164,18 @@ static std::pair<Huffman_Tree, Huffman_Tree> get_dynamic_trees(Bitstream &stream
         uint32_t code_length = stream.pop_bits(3);
         if (code_length != 0)
         {
-            std::cout << "Code " << codes[i] << " -> " << code_length << std::endl;
             code_lengths.insert_or_assign(codes[i], code_length);
         }
     }
-    for (const auto &p : code_lengths)
-    {
-        std::cout << "Test code: " << p.first << ", " << p.second << std::endl;
-    }
+
     Huffman_Tree initial_tree = Huffman_Tree::generate_tree(code_lengths);
-    std::cout << initial_tree;
     std::vector<uint32_t> literals;
-    stream.set_endianness(Endianness::little_endian);
     while (literals.size() < HLIT + HDIST)
     {
         uint32_t val = initial_tree.get_next_value(stream);
-        // std::cout << "Read in code: " << current_code << " with value " << val << std::endl;
         if (val == 16)
         {
-            // stream.set_endianness(Endianness::little_endian);
             uint32_t repeat_amount = 3 + stream.pop_bits(2);
-            // stream.set_endianness(Endianness::big_endian);
-            std::cout << "Repeating " << repeat_amount << " times" << std::endl;
             for (size_t i = 0; i < repeat_amount; i++)
             {
                 literals.push_back(literals.back());
@@ -201,10 +183,7 @@ static std::pair<Huffman_Tree, Huffman_Tree> get_dynamic_trees(Bitstream &stream
         }
         else if (val == 17)
         {
-            // stream.set_endianness(Endianness::little_endian);
             uint32_t repeat_amount = 3 + stream.pop_bits(3);
-            // stream.set_endianness(Endianness::big_endian);
-            std::cout << "Repeating zero " << repeat_amount << " times" << std::endl;
             for (size_t i = 0; i < repeat_amount; i++)
             {
                 literals.push_back(0);
@@ -212,10 +191,7 @@ static std::pair<Huffman_Tree, Huffman_Tree> get_dynamic_trees(Bitstream &stream
         }
         else if (val == 18)
         {
-            // stream.set_endianness(Endianness::little_endian);
             uint32_t repeat_amount = 11 + stream.pop_bits(7);
-            // stream.set_endianness(Endianness::big_endian);
-            std::cout << "Repeating zero " << repeat_amount << " times" << std::endl;
             for (size_t i = 0; i < repeat_amount; i++)
             {
                 literals.push_back(0);
@@ -228,11 +204,7 @@ static std::pair<Huffman_Tree, Huffman_Tree> get_dynamic_trees(Bitstream &stream
     }
     if (literals.size() > HLIT + HDIST)
     {
-        std::cout << "Overshot count!" << std::endl;
-    }
-    for (size_t i = 0; i < literals.size(); i++)
-    {
-        std::cout << i << " -> " << literals[i] << std::endl;
+        throw std::runtime_error("Literals size somehow larger than HLIT + HDIST!");
     }
 
     std::map<uint32_t, uint32_t> lit_map;
@@ -287,11 +259,12 @@ static uint32_t get_length_from_literal(uint32_t literal, Bitstream &stream)
         length = ((literal - 281) * 32 + 131) + stream.pop_bits(5);
     }
     else
-    { // literal value == 285
+    { // literal value == 285, return a length of 258 (not a typo)
         length = 258;
     }
     return length;
 }
+
 static uint32_t get_offset_from_literal(uint32_t literal, Bitstream &stream)
 {
     uint32_t offset;
