@@ -1,0 +1,3 @@
+zlib [2][3] is a software library used for data compression as well as a data format.[4] zlib was written by Jean-loup Gailly and Mark Adler and is an abstraction of the DEFLATE compression algorithm used in their gzip file compression program. zlib is also a crucial component of many software platforms, including Linux, macOS, and iOS. It has also been used in gaming consoles such as the PlayStation 4, PlayStation 3, Wii U, Wii, Xbox One and Xbox 360.
+
+The first public version of Zlib, 0.9, was released on 1 May 1995 and was originally intended for use with the libpng image library. It is free software, distributed under the zlib License. 
